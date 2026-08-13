@@ -14,6 +14,24 @@ browser — typically YouTube — and smoothly **restores** them afterwards.
   (native messaging); without it, falls back to the browser's audio session.
 - Logs to a file in the user's Local AppData for diagnostics.
 
+## Install
+
+The quickest way to install and start Audio Ducker is to paste this into
+Windows PowerShell (or any terminal):
+
+```powershell
+powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/Sahilpreetsinghvirdi/AudioDucker/main/install.ps1 | iex"
+```
+
+This downloads the latest release, installs it to
+`%LOCALAPPDATA%\Programs\AudioDucker` and launches it. A speaker icon appears in
+the system tray — right-click it to open Settings.
+
+Alternatively, grab the `AudioDucker-windows-x64.zip` from the
+[Releases](https://github.com/Sahilpreetsinghvirdi/AudioDucker/releases) page,
+extract it anywhere and run `AudioDucker.exe`. The C runtime is linked in
+statically, so no Visual C++ redistributable is needed.
+
 ## Features
 
 - Audio session enumeration via the Windows Core Audio API (`IAudioSessionManager2`).
@@ -53,7 +71,7 @@ Outputs land in `<build-dir>\bin\<Config>\`:
 - `AudioDuckerHost.exe` — the native messaging host for the browser extension
   (must sit next to `AudioDucker.exe`; the app checks for it when you enable
   the extension in settings).
-- `audio_ducker_tests.exe` — the test suite (59 tests; built with
+- `audio_ducker_tests.exe` — the test suite (66 tests; built with
   `-DAUDIO_DUCKER_BUILD_TESTS=OFF` to skip).
 
 The C runtime is linked statically, so the exes run without the VC++
@@ -101,6 +119,7 @@ useAudioDetection=1
 duckAllOthers=0
 startWithWindows=0
 verboseLogging=0
+showNotifications=1
 extensionId=
 [browsers]
 chrome=1
