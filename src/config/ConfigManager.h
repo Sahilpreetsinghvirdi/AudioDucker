@@ -22,6 +22,7 @@ struct AppSettings {
     bool duckAllOthers = false;    // duck every non-browser app with audio
     bool startWithWindows = false;
     bool verboseLogging = false;
+    bool showNotifications = true; // balloon when ducking/restoring
 
     std::set<std::string, std::less<>> enabledApps; // lowercase exe names
     std::string extensionId;                        // Chrome/Edge unpacked extension id (optional)

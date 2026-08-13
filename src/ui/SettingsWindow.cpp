@@ -35,6 +35,7 @@ enum {
     IDC_DUCK_ALL,
     IDC_STARTUP,
     IDC_VERBOSE,
+    IDC_NOTIFY,
     IDC_EXT_ID,
     IDC_BTN_REGISTER,
     IDC_BTN_APPLY,
@@ -245,6 +246,8 @@ LRESULT CALLBACK SettingsProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             MakeCombo(hwnd, IDC_FADE_DOWN, S(120), S(55), S(100));
             MakeStatic(hwnd, 0, L"Fade up (ms):", S(22), S(90), S(96), S(20));
             MakeCombo(hwnd, IDC_FADE_UP, S(120), S(87), S(100));
+            MakeCheck(hwnd, IDC_NOTIFY, L"Show a notification when ducking or restoring volume",
+                      S(22), S(118), S(400), S(20));
 
             // Detection group
             CreateWindowExW(0, L"BUTTON", L"Playback detection (browsers)", WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
@@ -310,6 +313,7 @@ LRESULT CALLBACK SettingsProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             CheckDlgButton(hwnd, IDC_DUCK_ALL, data->settings.duckAllOthers ? BST_CHECKED : BST_UNCHECKED);
             CheckDlgButton(hwnd, IDC_STARTUP, data->settings.startWithWindows ? BST_CHECKED : BST_UNCHECKED);
             CheckDlgButton(hwnd, IDC_VERBOSE, data->settings.verboseLogging ? BST_CHECKED : BST_UNCHECKED);
+            CheckDlgButton(hwnd, IDC_NOTIFY, data->settings.showNotifications ? BST_CHECKED : BST_UNCHECKED);
 
             // Discover currently running apps and merge with the enabled list.
             if (data->callbacks.discoverApps) {
@@ -455,6 +459,7 @@ AppSettings CollectSettings(HWND hwnd, DialogData* data) {
     s.duckAllOthers = IsDlgButtonChecked(hwnd, IDC_DUCK_ALL) == BST_CHECKED;
     s.startWithWindows = IsDlgButtonChecked(hwnd, IDC_STARTUP) == BST_CHECKED;
     s.verboseLogging = IsDlgButtonChecked(hwnd, IDC_VERBOSE) == BST_CHECKED;
+    s.showNotifications = IsDlgButtonChecked(hwnd, IDC_NOTIFY) == BST_CHECKED;
 
     wchar_t ext[256]{};
     GetDlgItemTextW(hwnd, IDC_EXT_ID, ext, 256);

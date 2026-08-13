@@ -41,7 +41,6 @@ enum MenuId {
 struct AppContext {
     TrayIcon tray;
     AudioSessionManager audio;
-    VolumeController controller;
     DuckingManager* ducking = nullptr;
     ConfigManager* config = nullptr;
 };
@@ -124,7 +123,9 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) 
             return 0;
 
         case kTrayCallbackMessage: {
-            if (lParam == WM_RBUTTONUP || lParam == WM_CONTEXTMENU) {
+            // NOTIFYICON_VERSION_4 packs the event in the low word of lParam.
+            UINT event = LOWORD(lParam);
+            if (event == WM_RBUTTONUP || event == WM_CONTEXTMENU) {
                 HMENU menu = BuildMenu(*ctx);
                 POINT pt{};
                 GetCursorPos(&pt);
@@ -136,7 +137,7 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) 
                 if (cmd != 0) PostMessageW(hwnd, WM_COMMAND, cmd, 0);
                 return 0;
             }
-            if (lParam == WM_LBUTTONUP) {
+            if (event == WM_LBUTTONUP) {
                 // Single left click: open the settings window.
                 PostMessageW(hwnd, WM_OPEN_SETTINGS, 0, 0);
                 return 0;
@@ -305,7 +306,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
     AppContext ctx;
     g_ctx = &ctx;
     ctx.config = &config;
-    ctx.ducking = new DuckingManager(Logger::Instance(), ctx.controller);
+    ctx.ducking = new DuckingManager(Logger::Instance(), ctx.audio.Controller());
 
     // Wire detection + audio.
     ctx.ducking->Configure(settings);

@@ -21,6 +21,7 @@ const wchar_t* kKeyUseAudio = L"useAudioDetection";
 const wchar_t* kKeyDuckAll = L"duckAllOthers";
 const wchar_t* kKeyStartup = L"startWithWindows";
 const wchar_t* kKeyVerbose = L"verboseLogging";
+const wchar_t* kKeyNotify = L"showNotifications";
 const wchar_t* kKeyExtId = L"extensionId";
 
 // Sensible default set of media applications to duck out of the box.
@@ -74,6 +75,7 @@ bool ConfigManager::Load() {
     s.duckAllOthers = readBool(kKeyDuckAll, false);
     s.startWithWindows = readBool(kKeyStartup, false);
     s.verboseLogging = readBool(kKeyVerbose, false);
+    s.showNotifications = readBool(kKeyNotify, true);
     s.extensionId = WideToUtf8(ini.Get(kSectionGeneral, kKeyExtId, L""));
 
     s.browserChrome = ini.Get(kSectionBrowsers, L"chrome", L"1") == L"1";
@@ -114,6 +116,7 @@ bool ConfigManager::Save() const {
     ini.Set(kSectionGeneral, kKeyDuckAll, s.duckAllOthers ? L"1" : L"0");
     ini.Set(kSectionGeneral, kKeyStartup, s.startWithWindows ? L"1" : L"0");
     ini.Set(kSectionGeneral, kKeyVerbose, s.verboseLogging ? L"1" : L"0");
+    ini.Set(kSectionGeneral, kKeyNotify, s.showNotifications ? L"1" : L"0");
     ini.Set(kSectionGeneral, kKeyExtId, Utf8ToWide(s.extensionId));
 
     ini.Set(kSectionBrowsers, L"chrome", s.browserChrome ? L"1" : L"0");

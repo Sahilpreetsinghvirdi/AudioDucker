@@ -79,7 +79,8 @@ void DuckingManager::Configure(const AppSettings& settings) {
 }
 
 void DuckingManager::Notify(int eventId) {
-    if (notify_) notify_(eventId);
+    if (!notify_ || !settings_.showNotifications) return;
+    notify_(eventId);
 }
 
 bool DuckingManager::IsTargetApp(const std::string& processName) const {
