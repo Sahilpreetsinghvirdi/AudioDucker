@@ -4,6 +4,10 @@ A Windows 10/11 tray application that automatically **ducks** (lowers) the
 volume of background applications while you are listening to audio in the
 browser — typically YouTube — and smoothly **restores** them afterwards.
 
+Made for the classic study-flow: keep Spotify playing underneath while you
+watch a course or lecture. The music settles to a low background volume the
+whole time, and comes back up to full the moment you pause.
+
 - Lowers the volume of selectable applications (e.g. Spotify, VLC) whenever
   the browser is producing sound.
 - Fades volume down and back up smoothly (configurable fade time).
