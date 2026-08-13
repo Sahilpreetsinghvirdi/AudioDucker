@@ -16,6 +16,15 @@ std::string DisplayName(const std::string& name) {
 DuckingManager::DuckingManager(Logger& log, VolumeController& controller)
     : log_(log), controller_(controller) {
     machine_.SetListener(this);
+    // The detector fires this on the audio thread whenever its playback count
+    // changes; push it into the state machine so ducking actually starts and
+    // stops in response to browser audio. Without this, the count was only ever
+    // replayed at Configure/SetEnabled time.
+    browserDetector_.SetCallback([this](int count) {
+        if (!enabled_) return;
+        machine_.SetSourceCount(BrowserActivityDetector::kSourceName, count);
+        activeCount_ = machine_.ActiveSourceCount();
+    });
 }
 
 void DuckingManager::Attach(AudioSessionManager* audio) {
@@ -47,7 +56,11 @@ void DuckingManager::Configure(const AppSettings& settings) {
         machine_.SetDuckVolume(settings.duckVolume);
         std::set<std::string> browsers;
         for (const auto& name : settings.GetEnabledBrowserNames()) browsers.insert(name);
-        browserDetector_.SetEnabledBrowsers(browsers);
+        bool detectionChanged = useAudioDetection_ != settings.useAudioDetection;
+        useAudioDetection_ = settings.useAudioDetection;
+        if (detectionChanged) browserDetector_.Reset(); // emits count 0 if ducking
+        browserDetector_.SetEnabledBrowsers(useAudioDetection_ ? browsers
+                                                               : std::set<std::string>{});
         log_.SetVerbose(settings.verboseLogging);
         log_.Info("Settings applied: duck=", Percent(settings.duckVolume),
                   " down=", settings.fadeDownMs, "ms up=", settings.fadeUpMs, "ms");
@@ -164,13 +177,20 @@ void DuckingManager::OnTick(int64_t nowMs) {
         if (!s) continue;
         if (rec.isBrowser) {
             bool active = s->IsActive();
-            if (active != rec.wasActive) {
-                rec.wasActive = active;
-                browserDetector_.OnSessionState(id, active);
-            }
             float v = 0.0f;
             bool m = false;
-            if (s->GetVolume(v, m)) browserDetector_.OnSessionMuted(id, m);
+            s->GetVolume(v, m);
+            if (!browserDetector_.Has(id)) {
+                // Detection was reset (e.g. useAudioDetection toggled): re-register.
+                rec.wasActive = active;
+                browserDetector_.OnSessionAdded(id, rec.processName, active, m);
+            } else {
+                if (active != rec.wasActive) {
+                    rec.wasActive = active;
+                    browserDetector_.OnSessionState(id, active);
+                }
+                browserDetector_.OnSessionMuted(id, m);
+            }
         } else if (machine_.HasTarget(id)) {
             float v = 0.0f;
             bool m = false;

@@ -20,6 +20,7 @@ public:
     void SetCallback(Callback cb) { cb_ = std::move(cb); }
     void SetEnabledBrowsers(std::set<std::string> browsers) { browsers_ = std::move(browsers); }
     bool IsBrowser(const std::string& processName) const;
+    bool Has(const std::string& id) const { return sessions_.count(id) != 0; }
 
     void OnSessionAdded(const std::string& id, const std::string& processName, bool active, bool muted);
     void OnSessionState(const std::string& id, bool active);

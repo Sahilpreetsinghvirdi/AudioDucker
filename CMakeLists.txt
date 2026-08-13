@@ -112,9 +112,13 @@ if(AUDIO_DUCKER_BUILD_TESTS)
     tests/test_ducking.cpp
     tests/test_config.cpp
     tests/test_json.cpp
+    src/audio/AudioSession.cpp
+    src/audio/AudioSessionManager.cpp
+    src/audio/VolumeController.cpp
+    src/ducking/DuckingManager.cpp
   )
   target_link_libraries(audio_ducker_tests PRIVATE audio_ducker_core
-    advapi32 shell32 user32 ole32)
+    advapi32 shell32 user32 ole32 winmm)
   add_test(NAME audio_ducker_tests COMMAND audio_ducker_tests)
 endif()
 

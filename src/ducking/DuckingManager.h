@@ -74,6 +74,7 @@ private:
     DuckingStateMachine machine_;
     BrowserActivityDetector browserDetector_;
     AppSettings settings_;
+    bool useAudioDetection_ = true;
 
     std::map<std::string, Record> sessions_;
     std::map<std::string, float> pendingRestores_;

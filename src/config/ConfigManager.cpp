@@ -25,7 +25,8 @@ const wchar_t* kKeyExtId = L"extensionId";
 
 // Sensible default set of media applications to duck out of the box.
 const char* kDefaultApps[] = {
-    "spotify.exe", "vlc.exe", "wmplayer.exe", "musicbee.exe", "foobar2000.exe",
+    "spotify.exe", "vlc.exe", "wmplayer.exe", "microsoft.media.player.exe",
+    "musicbee.exe", "foobar2000.exe",
     "itunes.exe", "winamp.exe", "groovemusic.exe", "mediamonkey.exe",
     "potplayer.exe", "mpv.exe", "kodi.exe", "audacious.exe",
 };

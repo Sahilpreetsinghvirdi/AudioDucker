@@ -1,12 +1,23 @@
 #include "TestHarness.h"
 
+#include "audio/AudioSession.h"
+#include "audio/VolumeController.h"
+#include "config/ConfigManager.h"
 #include "core/DuckingStateMachine.h"
+#include "ducking/DuckingManager.h"
+#include "utils/Logger.h"
 
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
+using ducker::AppSettings;
+using ducker::AudioSession;
+using ducker::DuckingManager;
 using ducker::DuckingStateMachine;
+using ducker::SessionInfo;
+using ducker::VolumeController;
 
 namespace {
 
@@ -266,4 +277,109 @@ TEST(DuckMachineDuckVolumeIsClamped) {
     m.AddSession("a", 0.8f, false);
     m.SetSourceCount("browser-audio", 1);
     EXPECT_NEAR(m.TargetVolume("a"), 0.0f, 1e-6);
+}
+
+// ---------------------------------------------------------------------------
+// DuckingManager integration: the browser detector's playback count must be
+// pushed into the state machine as it changes (regression: SetCallback was
+// never registered, so ducking never started in real usage).
+// ---------------------------------------------------------------------------
+
+namespace {
+
+struct TestContext {
+    TestContext() { dm.Configure(settings); }
+
+    AppSettings settings;
+    VolumeController controller;
+    DuckingManager dm{ducker::Logger::Instance(), controller};
+};
+
+std::unique_ptr<AudioSession> MakeDummySession() { return std::make_unique<AudioSession>(); }
+
+SessionInfo MakeBrowserInfo(const char* id, bool active) {
+    SessionInfo info;
+    info.id = id;
+    info.processId = 4242;
+    info.processName = "chrome.exe";
+    info.volume = 0.8f;
+    info.active = active;
+    return info;
+}
+
+} // namespace
+
+TEST(DuckingManagerBrowserPlaybackStartsAndStopsDucking) {
+    TestContext ctx;
+    auto session = MakeDummySession();
+
+    auto info = MakeBrowserInfo("browser-1", false);
+    ctx.dm.OnSessionAdded(info, session.get());
+    EXPECT_FALSE(ctx.dm.IsDucking());
+
+    ctx.dm.OnStateChanged(info.id, true); // YouTube starts playing
+    EXPECT_TRUE(ctx.dm.IsDucking());
+
+    ctx.dm.OnStateChanged(info.id, false); // playback pauses/stops
+    EXPECT_FALSE(ctx.dm.IsDucking());
+
+    ctx.dm.OnSessionRemoved(info.id);
+}
+
+TEST(DuckingManagerBrowserSessionAddedWhileActiveDucksImmediately) {
+    TestContext ctx;
+    auto session = MakeDummySession();
+
+    auto info = MakeBrowserInfo("browser-1", true); // already playing on arrival
+    ctx.dm.OnSessionAdded(info, session.get());
+    EXPECT_TRUE(ctx.dm.IsDucking());
+
+    ctx.dm.OnSessionRemoved(info.id);
+}
+
+TEST(DuckingManagerDisabledIgnoresBrowserPlayback) {
+    TestContext ctx;
+    ctx.dm.SetEnabled(false); // runs inline: no audio thread attached
+
+    auto session = MakeDummySession();
+    auto info = MakeBrowserInfo("browser-1", false);
+    ctx.dm.OnSessionAdded(info, session.get());
+    ctx.dm.OnStateChanged(info.id, true);
+    EXPECT_FALSE(ctx.dm.IsDucking());
+
+    ctx.dm.OnSessionRemoved(info.id);
+}
+
+TEST(DuckingManagerUseAudioDetectionOffIgnoresBrowserPlayback) {
+    TestContext ctx;
+    ctx.settings.useAudioDetection = false;
+    ctx.dm.Configure(ctx.settings);
+
+    auto session = MakeDummySession();
+    auto info = MakeBrowserInfo("browser-1", true);
+    ctx.dm.OnSessionAdded(info, session.get());
+    EXPECT_FALSE(ctx.dm.IsDucking());
+
+    ctx.dm.OnSessionRemoved(info.id);
+}
+
+TEST(DuckingManagerToggleDetectionOffStopsDucking) {
+    TestContext ctx;
+    auto session = MakeDummySession();
+
+    auto info = MakeBrowserInfo("browser-1", false);
+    ctx.dm.OnSessionAdded(info, session.get());
+    ctx.dm.OnStateChanged(info.id, true);
+    EXPECT_TRUE(ctx.dm.IsDucking());
+
+    ctx.settings.useAudioDetection = false;
+    ctx.dm.Configure(ctx.settings);
+    EXPECT_FALSE(ctx.dm.IsDucking());
+
+    ctx.settings.useAudioDetection = true;
+    ctx.dm.Configure(ctx.settings);
+    ctx.dm.OnStateChanged(info.id, true); // no-op: detector was reset
+    EXPECT_FALSE(ctx.dm.IsDucking());
+
+    ctx.dm.OnSessionRemoved(info.id);
 }
