@@ -96,6 +96,7 @@ private:
     float duckVolume_ = 0.25f;
     bool ducking_ = false;
     bool forcedDuck_ = false;
+    bool restoreOverride_ = false; // tray "Restore now" must restore even while sources are active
     Listener* listener_ = nullptr;
 };
 

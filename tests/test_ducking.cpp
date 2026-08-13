@@ -102,6 +102,30 @@ TEST(DuckMachineBasicDuckAndRestore) {
     EXPECT_TRUE(l.removed.empty());
 }
 
+TEST(DuckMachineManualRestoreWhileSourceActive) {
+    RecordingListener l;
+    auto m = MakeMachine(l);
+    m.AddSession("spotify", 0.8f, false);
+    m.SetSourceCount("browser-audio", 1);
+    m.OnDuckFadeComplete("spotify", 0.25f);
+    EXPECT_TRUE(m.IsDucking());
+
+    // Tray "Restore volumes" must restore even though a source is still active.
+    m.SetForcedDuck(false);
+    EXPECT_FALSE(m.IsDucking());
+    EXPECT_EQ(l.restores, 1);
+    EXPECT_EQ(l.restored.size(), static_cast<size_t>(1));
+    EXPECT_NEAR(l.restoredTo["spotify"], 0.8f, 1e-6);
+
+    // New playback event resumes normal ducking.
+    m.OnRestoreFadeComplete("spotify", 0.8f);
+    m.SetSourceCount("browser-audio", 0);
+    m.SetSourceCount("browser-audio", 1);
+    EXPECT_TRUE(m.IsDucking());
+    EXPECT_EQ(l.ducks.size(), static_cast<size_t>(2));
+    EXPECT_EQ(m.TargetCount(), static_cast<size_t>(1));
+}
+
 TEST(DuckMachineManualChangeBecomesBaseline) {
     RecordingListener l;
     auto m = MakeMachine(l);

@@ -16,15 +16,20 @@ void DuckingStateMachine::RemoveSource(const std::string& source) {
 
 void DuckingStateMachine::SetForcedDuck(bool force) {
     forcedDuck_ = force;
+    // A manual "Restore now" must win over any still-active source, otherwise
+    // the tray button silently does nothing while the browser keeps playing.
+    restoreOverride_ = !force;
     RecomputeDucking();
 }
 
 void DuckingStateMachine::RecomputeDucking() {
     bool want = forcedDuck_ || detector_.IsActive();
     if (want && !ducking_) {
+        restoreOverride_ = false;
         ducking_ = true;
         BeginDuck(detector_.TotalCount());
-    } else if (!want && ducking_) {
+    } else if ((!want || restoreOverride_) && ducking_) {
+        restoreOverride_ = false;
         ducking_ = false;
         BeginRestore();
     }
@@ -148,6 +153,7 @@ void DuckingStateMachine::ResetAll() {
     targets_.clear();
     ducking_ = false;
     forcedDuck_ = false;
+    restoreOverride_ = false;
     detector_.Clear();
 }
 
