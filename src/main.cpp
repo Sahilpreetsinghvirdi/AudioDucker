@@ -251,7 +251,8 @@ bool EnsureSingleInstance() {
 
 } // namespace
 
-int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE, LPWSTR lpCmdLine, int) {
+int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
+                    _In_ LPWSTR lpCmdLine, _In_ int nCmdShow) {
     std::wstring cmdline = lpCmdLine ? lpCmdLine : L"";
 
     bool consoleMode = cmdline.find(L"--console") != std::wstring::npos;
