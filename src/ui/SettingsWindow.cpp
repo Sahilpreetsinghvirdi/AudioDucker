@@ -9,6 +9,8 @@
 #include "common/Helpers.h"
 #include "common/Version.h"
 
+#include <algorithm>
+
 namespace ducker {
 
 namespace {
@@ -46,6 +48,7 @@ struct DialogData {
     std::vector<DiscoveredApp> apps;
     std::map<std::string, std::wstring> displayNames;
     HFONT font = nullptr;
+    double scale = 1.0;
     bool closed = false;
 };
 
@@ -61,8 +64,9 @@ HFONT MakeUiFont(HWND hwnd) {
 }
 
 int Scaled(int v, HWND hwnd) {
-    int dpi = GetDpiForWindow(hwnd);
-    return MulDiv(v, dpi, 96);
+    auto* data = reinterpret_cast<DialogData*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+    double s = data ? data->scale : 1.0;
+    return static_cast<int>(v * s + 0.5);
 }
 
 void SetFontForChildren(HWND dlg, HFONT font) {
@@ -155,33 +159,13 @@ void InitList(HWND list) {
     col.mask = LVCF_TEXT | LVCF_WIDTH | LVCF_FMT;
     col.fmt = LVCFMT_LEFT;
 
-    col.cx = Scaled(230, GetParent(list));
+    col.cx = Scaled(210, GetParent(list));
     col.pszText = const_cast<wchar_t*>(L"Application");
     ListView_InsertColumn(list, 0, &col);
 
-    col.cx = Scaled(110, GetParent(list));
+    col.cx = Scaled(100, GetParent(list));
     col.pszText = const_cast<wchar_t*>(L"Process");
     ListView_InsertColumn(list, 1, &col);
-}
-
-void AddAppRow(HWND list, const DiscoveredApp& app, bool checked) {
-    LVITEMW item{};
-    item.mask = LVIF_TEXT | LVIF_PARAM;
-    item.iItem = ListView_GetItemCount(list);
-    std::wstring name = app.displayName.empty() ? Utf8ToWide(app.processName) : app.displayName;
-    item.pszText = const_cast<wchar_t*>(name.c_str());
-    item.lParam = (LPARAM)0; // process name is stored via subitem; keep map index in a member instead
-    int row = ListView_InsertItem(list, &item);
-
-    std::wstring proc = Utf8ToWide(app.processName);
-    LVITEMW sub{};
-    sub.mask = LVIF_TEXT;
-    sub.iItem = row;
-    sub.iSubItem = 1;
-    sub.pszText = proc.data();
-    ListView_SetItem(list, &sub);
-
-    ListView_SetCheckState(list, row, checked ? TRUE : FALSE);
 }
 
 struct RowLookup {
@@ -243,7 +227,6 @@ LRESULT CALLBACK SettingsProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             data = reinterpret_cast<DialogData*>(cs->lpCreateParams);
             SetWindowLongPtrW(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(data));
             data->font = MakeUiFont(hwnd);
-            SetFontForChildren(hwnd, data->font);
 
             auto S = [hwnd](int v) { return Scaled(v, hwnd); };
 
@@ -307,6 +290,10 @@ LRESULT CALLBACK SettingsProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
             MakeButton(hwnd, IDC_BTN_APPLY, L"Apply", S(196), S(610), S(76), S(26));
             MakeButton(hwnd, IDC_BTN_OK, L"OK", S(278), S(610), S(76), S(26), BS_DEFPUSHBUTTON);
             MakeButton(hwnd, IDC_BTN_CANCEL, L"Cancel", S(360), S(610), S(76), S(26));
+
+            // The controls are created after the dialog font, so apply the font
+            // now that all of them exist.
+            SetFontForChildren(hwnd, data->font);
 
             // Populate controls
             PopulateDuckCombo(GetDlgItem(hwnd, IDC_DUCK_COMBO), data->settings.duckVolume);
@@ -372,12 +359,20 @@ LRESULT CALLBACK SettingsProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                     item.mask = LVIF_PARAM;
                     item.iItem = sel;
                     if (ListView_GetItem(list, &item)) {
-                        delete reinterpret_cast<RowLookup*>(item.lParam);
+                        if (auto* lookup = reinterpret_cast<RowLookup*>(item.lParam)) {
+                            // Drop it from the enabled set and from the internal
+                            // list so it does not come back on the next refresh.
+                            data->settings.enabledApps.erase(lookup->process);
+                            for (auto it = data->apps.begin(); it != data->apps.end(); ++it) {
+                                if (LowerAscii(it->processName) == lookup->process) {
+                                    data->apps.erase(it);
+                                    break;
+                                }
+                            }
+                            delete lookup;
+                        }
                     }
                     ListView_DeleteItem(list, sel);
-                    // Remove from apps so re-render stays consistent.
-                    int index = ListView_GetItemCount(list) > sel ? sel : sel - 1;
-                    (void)index;
                 }
             } else if (id == IDC_BTN_REGISTER && code == BN_CLICKED) {
                 if (data) {
@@ -393,6 +388,15 @@ LRESULT CALLBACK SettingsProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
                 DestroyWindow(hwnd);
             } else if (id == IDC_BTN_CANCEL && code == BN_CLICKED) {
                 DestroyWindow(hwnd);
+            }
+            return 0;
+        }
+
+        case WM_GETMINMAXINFO: {
+            auto* mmi = reinterpret_cast<MINMAXINFO*>(lParam);
+            if (data) {
+                mmi->ptMinTrackSize.x = static_cast<LONG>(448 * data->scale + 0.5);
+                mmi->ptMinTrackSize.y = static_cast<LONG>(648 * data->scale + 0.5);
             }
             return 0;
         }
@@ -476,28 +480,45 @@ void ShowSettingsWindow(HWND owner, const AppSettings& initial, SettingsCallback
     wc.lpszClassName = L"AudioDuckerSettingsWnd";
     RegisterClassW(&wc);
 
-    int dpi = owner ? GetDpiForWindow(owner) : 96;
-    RECT rc{0, 0, 448 * dpi / 96, 648 * dpi / 96};
-    AdjustWindowRectEx(&rc, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU, FALSE, 0);
+    // Design size (client area at 96 DPI).
+    constexpr int kDesignW = 448;
+    constexpr int kDesignH = 648;
 
-    HWND dlg = CreateWindowExW(0, wc.lpszClassName, L"Audio Ducker Settings",
-                               WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
-                               CW_USEDEFAULT, CW_USEDEFAULT, rc.right - rc.left, rc.bottom - rc.top,
-                               owner, nullptr, hInst, data);
+    int dpi = owner ? GetDpiForWindow(owner) : 96;
+    MONITORINFO mi{sizeof(mi)};
+    HMONITOR mon = MonitorFromWindow(owner ? owner : GetDesktopWindow(), MONITOR_DEFAULTTONEAREST);
+    GetMonitorInfoW(mon, &mi);
+    const RECT& wa = mi.rcWork;
+    const int waW = wa.right - wa.left;
+    const int waH = wa.bottom - wa.top;
+
+    // Scale for DPI, but never exceed the monitor's work area. This keeps the
+    // whole window (including the title bar) on screen at any DPI, so it can
+    // always be grabbed and dragged.
+    double scale = static_cast<double>(dpi) / 96.0;
+    const double maxW = (waW - 16.0) / kDesignW;
+    const double maxH = (waH - 16.0) / (kDesignH + 40.0); // + caption/borders
+    scale = std::min(scale, std::min(maxW, maxH));
+    if (scale < 1.0) scale = 1.0;
+    data->scale = scale;
+
+    const DWORD style = WS_OVERLAPPEDWINDOW;
+    RECT rc{0, 0, static_cast<int>(kDesignW * scale + 0.5),
+                 static_cast<int>(kDesignH * scale + 0.5)};
+    AdjustWindowRectEx(&rc, style, FALSE, 0);
+    const int winW = rc.right - rc.left;
+    const int winH = rc.bottom - rc.top;
+
+    int x = wa.left + (waW - winW) / 2;
+    int y = wa.top + (waH - winH) / 2;
+    if (y < wa.top) y = wa.top;
+    if (x < wa.left) x = wa.left;
+
+    HWND dlg = CreateWindowExW(0, wc.lpszClassName, L"Audio Ducker Settings", style,
+                               x, y, winW, winH, owner, nullptr, hInst, data);
     if (!dlg) {
         delete data;
         return;
-    }
-
-    if (owner) {
-        RECT orc{}, crc{};
-        GetWindowRect(owner, &orc);
-        GetWindowRect(dlg, &crc);
-        int w = crc.right - crc.left;
-        int h = crc.bottom - crc.top;
-        int x = orc.left + (orc.right - orc.left - w) / 2;
-        int y = orc.top + (orc.bottom - orc.top - h) / 2;
-        SetWindowPos(dlg, nullptr, x, y, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
     }
     ShowWindow(dlg, SW_SHOW);
 
