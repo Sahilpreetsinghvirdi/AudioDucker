@@ -1,0 +1,23 @@
+{
+  "manifest_version": 2,
+  "name": "Audio Ducker - YouTube detector",
+  "version": "1.0.0",
+  "description": "Reports how many YouTube tabs are playing audible audio to the Audio Ducker app so it can duck other applications.",
+  "permissions": ["nativeMessaging", "tabs"],
+  "background": {
+    "scripts": ["../background.js"],
+    "persistent": false
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/*"],
+      "js": ["../content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "audio-ducker@audiodycker.local"
+    }
+  }
+}

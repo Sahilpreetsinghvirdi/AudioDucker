@@ -1,0 +1,6 @@
+#pragma once
+
+#define AUDIO_DUCKER_VERSION_STRING "1.0.0"
+#define AUDIO_DUCKER_VERSION_STRING_W L"1.0.0"
+#define AUDIO_DUCKER_PRODUCT_NAME "Audio Ducker"
+#define AUDIO_DUCKER_PRODUCT_NAME_W L"Audio Ducker"
