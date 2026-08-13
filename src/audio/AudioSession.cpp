@@ -67,6 +67,7 @@ bool AudioSession::Init(IAudioSessionControl2* control) {
         CoTaskMemFree(instId);
     }
     if (id_.empty()) id_ = Str("sess-", reinterpret_cast<uintptr_t>(control));
+    info_.id = id_;
 
     DWORD pid = 0;
     if (SUCCEEDED(control->GetProcessId(&pid))) info_.processId = pid;
