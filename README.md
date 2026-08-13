@@ -120,8 +120,7 @@ duckAllOthers=0
 startWithWindows=0
 verboseLogging=0
 showNotifications=1
-extensionId=
-[browsers]
+extensionId=[browsers]
 chrome=1
 edge=1
 firefox=1
@@ -151,3 +150,8 @@ vlc.exe=0
 Diagnostics are appended to `%LOCALAPPDATA%\AudioDucker\audio-ducker.log`.
 Use the tray menu to toggle more verbose logging (session lifecycle, volume
 changes, duck/restore transitions).
+
+## License
+
+Copyright 2026 Sahil Vird. Licensed under the Apache License, Version 2.0.
+See [LICENSE](LICENSE) for the full text.
