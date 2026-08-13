@@ -2,6 +2,7 @@
 
 #include <windows.h>
 #include <audiopolicy.h>
+#include <endpointvolume.h>
 #include <mmdeviceapi.h>
 
 #include <atomic>
@@ -70,6 +71,7 @@ public:
     void SetVolume(float volume); // self-writes are recorded for suppression
     void SetMute(bool mute);
     bool IsActive() const;        // polls session state
+    float PeakValue() const;      // current peak amplitude in [0,1] (0 if N/A)
 
     void SetVolumeChangedCallback(VolumeChanged cb) { volumeCb_ = std::move(cb); }
     void SetStateChangedCallback(StateChanged cb) { stateCb_ = std::move(cb); }
@@ -84,6 +86,7 @@ private:
     friend class SessionEventSink;
     com::Ptr<IAudioSessionControl2> control_;
     com::Ptr<ISimpleAudioVolume> volume_;
+    com::Ptr<IAudioMeterInformation> meter_;
     com::Ptr<SessionEventSink> sink_;
     mutable SessionInfo info_;
     std::string id_;

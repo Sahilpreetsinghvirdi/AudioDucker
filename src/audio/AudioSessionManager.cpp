@@ -18,7 +18,7 @@ namespace ducker {
 namespace {
 constexpr int kFadeTickMs = 10;      // timer resolution while fades are active
 constexpr int kIdleTickMs = 250;     // sleep while idle
-constexpr int64_t kHousekeepingMs = 1000;
+constexpr int64_t kHousekeepingMs = 250;
 constexpr int64_t kVolumePollMs = 1000;
 } // namespace
 

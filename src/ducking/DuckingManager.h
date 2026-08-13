@@ -61,6 +61,7 @@ private:
         bool isBrowser = false;
         bool wasActive = false;
         bool duckFadeDone = false;
+        int64_t silentSinceMs = -1; // audio-thread ms when it last went quiet
     };
 
     bool IsTargetApp(const std::string& processName) const;

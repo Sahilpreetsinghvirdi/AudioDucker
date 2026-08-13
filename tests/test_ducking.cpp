@@ -2,6 +2,7 @@
 
 #include "audio/AudioSession.h"
 #include "audio/VolumeController.h"
+#include "common/Helpers.h"
 #include "config/ConfigManager.h"
 #include "core/DuckingStateMachine.h"
 #include "ducking/DuckingManager.h"
@@ -326,12 +327,62 @@ TEST(DuckingManagerBrowserPlaybackStartsAndStopsDucking) {
     ctx.dm.OnSessionRemoved(info.id);
 }
 
-TEST(DuckingManagerBrowserSessionAddedWhileActiveDucksImmediately) {
+TEST(DuckingManagerBrowserSessionWithoutAudioDoesNotDuck) {
     TestContext ctx;
     auto session = MakeDummySession();
 
-    auto info = MakeBrowserInfo("browser-1", true); // already playing on arrival
+    // Session exists and reports Active, but produces no audio (peak ~0) - like
+    // a paused tab Chrome still holds Active. Must NOT duck (regression: used to
+    // duck purely off the stale "active" flag for seconds after pausing).
+    auto info = MakeBrowserInfo("browser-1", true);
     ctx.dm.OnSessionAdded(info, session.get());
+    EXPECT_FALSE(ctx.dm.IsDucking());
+
+    ctx.dm.OnSessionRemoved(info.id);
+}
+
+TEST(DuckingManagerBrowserSilenceGraceTriggersRestore) {
+    TestContext ctx;
+    auto session = MakeDummySession();
+
+    auto info = MakeBrowserInfo("browser-1", false);
+    ctx.dm.OnSessionAdded(info, session.get());
+    EXPECT_FALSE(ctx.dm.IsDucking());
+
+    ctx.dm.OnStateChanged(info.id, true); // playback starts
+    EXPECT_TRUE(ctx.dm.IsDucking());
+
+    // The session stays "active" but goes silent (dummy peak is always 0), the
+    // way a paused tab does. Once quiet has persisted past the grace period the
+    // watchdog must stop ducking even though the session never reported
+    // Inactive.
+    auto t0 = ducker::NowMs();
+    ctx.dm.OnTick(t0);          // silence window opens
+    ctx.dm.OnTick(t0 + 1300);   // 1.3s quiet > grace
+    EXPECT_FALSE(ctx.dm.IsDucking());
+
+    ctx.dm.OnSessionRemoved(info.id);
+}
+
+TEST(DuckingManagerBrowserSilenceGraceDoesNotFlickerOnBriefGaps) {
+    TestContext ctx;
+    auto session = MakeDummySession();
+
+    auto info = MakeBrowserInfo("browser-1", false);
+    ctx.dm.OnSessionAdded(info, session.get());
+    ctx.dm.OnStateChanged(info.id, true);
+    EXPECT_TRUE(ctx.dm.IsDucking());
+
+    // Short quiet blip below the grace period must not stop ducking...
+    auto t0 = ducker::NowMs();
+    ctx.dm.OnTick(t0);         // goes quiet
+    ctx.dm.OnTick(t0 + 300);   // still quiet but < grace
+    ctx.dm.OnStateChanged(info.id, true); // ...audio resumes (event)
+    EXPECT_TRUE(ctx.dm.IsDucking());
+
+    // ...and the resumed session, still silent on the next tick, keeps ducking
+    // until the grace window has actually elapsed since it went quiet again.
+    ctx.dm.OnTick(t0 + 600);
     EXPECT_TRUE(ctx.dm.IsDucking());
 
     ctx.dm.OnSessionRemoved(info.id);

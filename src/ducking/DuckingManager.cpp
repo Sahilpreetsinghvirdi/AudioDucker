@@ -6,6 +6,15 @@ namespace ducker {
 
 namespace {
 constexpr float kEps = vol::kEps;
+// Session "active" alone is unreliable for stop detection: Chromium keeps a
+// session Active for many seconds after a video is paused, so a paused tab
+// still looks "playing". The session's peak meter tells us when audio is
+// actually being produced. We treat a browser session as playing only while its
+// peak stays above this floor, and allow a short grace period after it goes
+// quiet so brief gaps (track changes, silent passages) don't flicker ducking.
+constexpr float kPeakThreshold = 0.003f;
+constexpr int64_t kSilenceGraceMs = 1200;
+constexpr int64_t kPollIntervalMs = 250;
 
 std::string DisplayName(const std::string& name) {
     if (name.empty()) return "unknown application";
@@ -91,10 +100,12 @@ void DuckingManager::OnSessionAdded(const SessionInfo& info, AudioSession* sessi
     }
 
     if (browserDetector_.IsBrowser(info.processName)) {
+        bool producing = session->IsActive() && session->PeakValue() > kPeakThreshold;
         log_.Debug("Browser session: ", info.processName, " active=", info.active,
-                   " muted=", info.muted);
-        sessions_[info.id] = Record{session, info.processName, true, info.active, false};
-        browserDetector_.OnSessionAdded(info.id, info.processName, info.active, info.muted);
+                   " producing=", producing, " muted=", info.muted);
+        Record rec{session, info.processName, true, producing, false, -1};
+        sessions_[info.id] = rec;
+        browserDetector_.OnSessionAdded(info.id, info.processName, producing, info.muted);
         return;
     }
 
@@ -159,6 +170,7 @@ void DuckingManager::OnStateChanged(const std::string& id, bool active) {
     if (!it->second.isBrowser) return;
     log_.Debug("Browser session state: ", id, " active=", active);
     it->second.wasActive = active;
+    it->second.silentSinceMs = -1;
     browserDetector_.OnSessionState(id, active);
 }
 
@@ -173,7 +185,7 @@ void DuckingManager::OnDeviceChanged() {
 }
 
 void DuckingManager::OnTick(int64_t nowMs) {
-    if (nowMs - lastPollMs_ < 1000) return;
+    if (nowMs - lastPollMs_ < kPollIntervalMs) return;
     lastPollMs_ = nowMs;
 
     // The browser extension helper host may have died (browser closed) without
@@ -191,18 +203,34 @@ void DuckingManager::OnTick(int64_t nowMs) {
         AudioSession* s = rec.session;
         if (!s) continue;
         if (rec.isBrowser) {
-            bool active = s->IsActive();
+            bool producing = s->IsActive() && s->PeakValue() > kPeakThreshold;
+            log_.Debug("Poll browser ", id, " producing=", producing);
             float v = 0.0f;
             bool m = false;
             s->GetVolume(v, m);
             if (!browserDetector_.Has(id)) {
                 // Detection was reset (e.g. useAudioDetection toggled): re-register.
-                rec.wasActive = active;
-                browserDetector_.OnSessionAdded(id, rec.processName, active, m);
+                rec.wasActive = producing;
+                browserDetector_.OnSessionAdded(id, rec.processName, producing, m);
             } else {
-                if (active != rec.wasActive) {
-                    rec.wasActive = active;
-                    browserDetector_.OnSessionState(id, active);
+                if (producing) {
+                    rec.silentSinceMs = -1;
+                    if (!rec.wasActive) {
+                        rec.wasActive = true;
+                        browserDetector_.OnSessionState(id, true);
+                    }
+                } else if (rec.wasActive) {
+                    // Went quiet: begin a grace window; only stop ducking once the
+                    // session has produced nothing for the full grace period.
+                    if (rec.silentSinceMs < 0) {
+                        rec.silentSinceMs = nowMs;
+                    } else if (nowMs - rec.silentSinceMs >= kSilenceGraceMs) {
+                        rec.wasActive = false;
+                        rec.silentSinceMs = -1;
+                        browserDetector_.OnSessionState(id, false);
+                    }
+                } else {
+                    rec.silentSinceMs = -1;
                 }
                 browserDetector_.OnSessionMuted(id, m);
             }

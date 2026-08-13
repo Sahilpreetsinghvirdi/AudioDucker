@@ -61,6 +61,11 @@ bool AudioSession::Init(IAudioSessionControl2* control) {
                                          reinterpret_cast<void**>(volume_.Put()));
     if (FAILED(hr) || !volume_) return false;
 
+    // Per-session peak meter (used to tell "playing" apart from merely
+    // "session active"; Chrome keeps sessions active for seconds after pause).
+    control->QueryInterface(__uuidof(IAudioMeterInformation),
+                            reinterpret_cast<void**>(meter_.Put()));
+
     LPWSTR instId = nullptr;
     if (SUCCEEDED(control->GetSessionInstanceIdentifier(&instId)) && instId) {
         id_ = WideToUtf8(instId);
@@ -140,6 +145,14 @@ bool AudioSession::IsActive() const {
     AudioSessionState state = AudioSessionStateInactive;
     control_->GetState(&state);
     return state == AudioSessionStateActive;
+}
+
+float AudioSession::PeakValue() const {
+    if (!meter_) return 0.0f;
+    std::lock_guard<std::mutex> lock(mu_);
+    float peak = 0.0f;
+    meter_->GetPeakValue(&peak);
+    return peak;
 }
 
 void AudioSession::OnSimpleVolumeChanged(float volume, bool muted) {
