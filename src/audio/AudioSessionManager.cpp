@@ -89,6 +89,7 @@ void AudioSessionManager::ThreadMain() {
     running_ = true;
 
     AcquireDevice();
+    EnumerateSessions(); // list existing sessions now; later ones arrive via events
 
     int64_t lastWake = NowMs();
     for (;;) {
@@ -159,14 +160,21 @@ bool AudioSessionManager::AcquireDevice() {
 }
 
 void AudioSessionManager::EnumerateSessions() {
-    if (!sessionManager_) return;
+    if (!sessionManager_) {
+        Logger::Instance().Debug("EnumerateSessions: no session manager yet");
+        return;
+    }
 
     com::Ptr<IAudioSessionEnumerator> enumerator;
     HRESULT hr = sessionManager_->GetSessionEnumerator(enumerator.Put());
-    if (FAILED(hr) || !enumerator) return;
+    if (FAILED(hr) || !enumerator) {
+        Logger::Instance().Debug("GetSessionEnumerator failed (", hr, ")");
+        return;
+    }
 
     int count = 0;
     enumerator->GetCount(&count);
+    Logger::Instance().Debug("Enumerating audio sessions: ", count);
 
     std::set<std::string> seen;
     for (int i = 0; i < count; i++) {
@@ -196,7 +204,10 @@ void AudioSessionManager::EnumerateSessions() {
 
 void AudioSessionManager::AddSessionFromControl(IAudioSessionControl2* control) {
     auto session = std::make_shared<AudioSession>();
-    if (!session->Init(control)) return;
+    if (!session->Init(control)) {
+        Logger::Instance().Debug("Failed to init audio session");
+        return;
+    }
     const std::string id = session->Id();
     if (sessions_.count(id)) return;
 

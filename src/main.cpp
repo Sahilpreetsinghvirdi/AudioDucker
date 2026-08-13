@@ -129,8 +129,11 @@ LRESULT CALLBACK MainWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) 
                 POINT pt{};
                 GetCursorPos(&pt);
                 SetForegroundWindow(hwnd);
-                TrackPopupMenu(menu, TPM_RIGHTBUTTON | TPM_RETURNCMD, pt.x, pt.y, 0, hwnd, nullptr);
+                UINT cmd = TrackPopupMenu(menu, TPM_RIGHTBUTTON | TPM_RETURNCMD, pt.x, pt.y, 0, hwnd,
+                                          nullptr);
                 DestroyMenu(menu);
+                PostMessageW(hwnd, WM_NULL, 0, 0); // dismiss the menu cleanly
+                if (cmd != 0) PostMessageW(hwnd, WM_COMMAND, cmd, 0);
                 return 0;
             }
             if (lParam == WM_LBUTTONUP) {

@@ -22,6 +22,7 @@ DuckingManager::DuckingManager(Logger& log, VolumeController& controller)
     // replayed at Configure/SetEnabled time.
     browserDetector_.SetCallback([this](int count) {
         if (!enabled_) return;
+        log_.Debug("Browser playback count: ", count);
         machine_.SetSourceCount(BrowserActivityDetector::kSourceName, count);
         activeCount_ = machine_.ActiveSourceCount();
     });
@@ -83,16 +84,26 @@ bool DuckingManager::IsTargetApp(const std::string& processName) const {
 // ---------------------------------------------------------------------------
 
 void DuckingManager::OnSessionAdded(const SessionInfo& info, AudioSession* session) {
-    if (info.system || info.processId == 0 || !session) return;
+    if (info.system || info.processId == 0 || !session) {
+        log_.Debug("Ignore session: proc=", info.processName, " system=", info.system,
+                   " pid=", info.processId);
+        return;
+    }
 
     if (browserDetector_.IsBrowser(info.processName)) {
+        log_.Debug("Browser session: ", info.processName, " active=", info.active,
+                   " muted=", info.muted);
         sessions_[info.id] = Record{session, info.processName, true, info.active, false};
         browserDetector_.OnSessionAdded(info.id, info.processName, info.active, info.muted);
         return;
     }
 
-    if (!IsTargetApp(info.processName)) return;
+    if (!IsTargetApp(info.processName)) {
+        log_.Debug("Not a target: ", info.processName);
+        return;
+    }
 
+    log_.Debug("Target session: ", info.processName, " active=", info.active);
     sessions_[info.id] = Record{session, info.processName, false, false, false};
     machine_.AddSession(info.id, info.volume, info.muted);
     if (machine_.IsDucking())
@@ -141,8 +152,12 @@ void DuckingManager::OnVolumeChanged(const std::string& id, float volume, bool m
 
 void DuckingManager::OnStateChanged(const std::string& id, bool active) {
     auto it = sessions_.find(id);
-    if (it == sessions_.end()) return;
+    if (it == sessions_.end()) {
+        log_.Debug("State change for untracked session: ", id, " active=", active);
+        return;
+    }
     if (!it->second.isBrowser) return;
+    log_.Debug("Browser session state: ", id, " active=", active);
     it->second.wasActive = active;
     browserDetector_.OnSessionState(id, active);
 }

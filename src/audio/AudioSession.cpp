@@ -72,7 +72,7 @@ bool AudioSession::Init(IAudioSessionControl2* control) {
     if (SUCCEEDED(control->GetProcessId(&pid))) info_.processId = pid;
     if (auto name = ProcessNameByPid(info_.processId)) info_.processName = *name;
 
-    info_.system = SUCCEEDED(control->IsSystemSoundsSession());
+    info_.system = control->IsSystemSoundsSession() == S_OK;
 
     LPWSTR nameBuf = nullptr;
     if (SUCCEEDED(control->GetDisplayName(&nameBuf)) && nameBuf) {
