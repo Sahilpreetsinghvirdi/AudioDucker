@@ -28,8 +28,10 @@ powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.c
 ```
 
 This downloads the latest release, installs it to
-`%LOCALAPPDATA%\Programs\AudioDucker` and launches it. A speaker icon appears in
-the system tray — right-click it to open Settings.
+`%LOCALAPPDATA%\Programs\AudioDucker`, creates a desktop shortcut, registers it
+with Windows (so it appears under Settings > Apps > Installed apps, complete
+with an uninstaller) and launches it. A speaker icon appears in the system tray
+— right-click it to open Settings.
 
 Alternatively, grab the `AudioDucker-windows-x64.zip` from the
 [Releases](https://github.com/Sahilpreetsinghvirdi/AudioDucker/releases) page,
