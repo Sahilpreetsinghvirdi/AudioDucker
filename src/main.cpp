@@ -245,7 +245,10 @@ bool EnsureSingleInstance() {
     if (GetLastError() == ERROR_ALREADY_EXISTS) {
         HWND existing = FindWindowW(native::kWindowClass, nullptr);
         if (existing) {
-            ShowWindow(existing, SW_SHOW);
+            // A second copy was launched: just open Settings on the running
+            // instance. The main window must stay hidden - the app lives only
+            // in the system tray, and showing it pops up an empty "Audio
+            // Ducker" window whose close button kills the app.
             PostMessageW(existing, WM_OPEN_SETTINGS, 0, 0);
         }
         return false;
